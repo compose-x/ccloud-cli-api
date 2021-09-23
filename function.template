@@ -1,0 +1,115 @@
+---
+# Template for lambda layer publish
+
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+
+Description: >-
+  Template to deploy Lambda Layer version
+
+Parameters:
+  CcloudMasterPasswordArn:
+    Type: String
+
+  EcrImageUri:
+    Type: String
+
+  PermissionsBoundary:
+    Type: String
+    Default: none
+
+  SecretsPrefix:
+    Default: "none"
+    Type: String
+    Description: A prefix string to access Kafka secrets in secrets manager
+
+Conditions:
+  UsePermissionsBoundary: !Not [ !Equals [ !Ref PermissionsBoundary, "none" ] ]
+  UseSecretPrefix: !Not [ !Equals [ !Ref SecretsPrefix, "none" ] ]
+
+Resources:
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
+      Policies:
+        - PolicyName: MasterPasswordAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: MasterPasswordAccess
+                Action:
+                  - secretsmanager:GetSecretValue
+                Effect: Allow
+                Resource:
+                  - !Ref CcloudMasterPasswordArn
+              - Sid: KMSAccess
+                Effect: "Allow"
+                Action:
+                  - "kms:Decrypt"
+                  - "kms:GenerateDataKey"
+                Resource: "*"
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Condition:
+              Bool:
+                aws:SecureTransport: 'true'
+            Effect: Allow
+            Principal:
+              Service:
+                - !Sub 'lambda.${AWS::URLSuffix}'
+        Version: '2012-10-17'
+
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Environment:
+        Variables:
+          MASTER_PASSWORD_ARN: !Ref CcloudMasterPasswordArn
+      PackageType: "Image"
+      ImageUri: !Ref EcrImageUri
+      Role: !GetAtt FunctionRole.Arn
+      FunctionName: !Ref AWS::StackName
+
+  SecretsManagerServiceAccess:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt LambdaFunction.Arn
+      Principal: secretsmanager.amazonaws.com
+
+
+  FunctionSecretsAccess:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - LambdaFunction
+      - FunctionRole
+    Properties:
+      Roles: [!Ref FunctionRole]
+      PolicyName: SecretsAccess
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowFunctionAccessToSecrets
+            Effect: Allow
+            Action:
+              - "secretsmanager:DescribeSecret"
+              - "secretsmanager:GetSecretValue"
+              - "secretsmanager:PutSecretValue"
+              - "secretsmanager:UpdateSecretVersionStage"
+            Resource: !If
+              - UseSecretPrefix
+              - !Sub "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretsPrefix}*"
+              - !Sub "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*"
+            Condition:
+              StringEquals:
+                  secretsmanager:resource/AllowRotationLambdaArn: !GetAtt LambdaFunction.Arn

@@ -5,13 +5,21 @@
 """Main module."""
 
 import json
+import os
 import subprocess
 import warnings
 from copy import deepcopy
 from os import environ
 
 
-def login(email=None, password=None):
+def login(email=None, password=None, temp_dir=None):
+    """
+
+    :param str email:
+    :param str password:
+    :param tempfile.TemporaryDirectory temp_dir:
+    :return:
+    """
     if email and password:
         environ["CCLOUD_EMAIL"] = email
         environ["CCLOUD_PASSWORD"] = password
@@ -22,7 +30,11 @@ def login(email=None, password=None):
             "You must specify CCLOUD_EMAIL and CCLOUD_PASSWORD to login"
         )
     base_cmd = ["ccloud", "login", "--save"]
-    print(subprocess.run(base_cmd, capture_output=True, text=True).stdout)
+    print("Executing login")
+    if temp_dir:
+        environ["HOME"] = temp_dir.name
+    output = subprocess.run(base_cmd, capture_output=True, text=True)
+    print(output)
 
 
 def list_environments():
@@ -41,7 +53,10 @@ def list_clusters(all_environments=False):
             cmd.append("--environment")
             cmd.append(env["id"])
             output = subprocess.run(cmd, capture_output=True, text=True).stdout
-            clusters += json.loads(output)
+            if output:
+                clusters += json.loads(output)
+            else:
+                print(f"No output for {cmd}")
         return clusters
     else:
         output = subprocess.run(base_cmd, capture_output=True, text=True).stdout
@@ -126,6 +141,9 @@ def list_api_keys(service_account=None):
         base_cmd.append("--service-account")
         base_cmd.append(service_account)
     output = subprocess.run(base_cmd, capture_output=True, text=True).stdout
+    if not output:
+        print(f"No output for {base_cmd}")
+        return []
     return json.loads(output)
 
 
