@@ -16,7 +16,7 @@ def replace_string_in_dict_values(input_dict, src_value, new_value, copy=False):
     :return:
     """
 
-    src_re = re.compile(src_value)
+    src_re = re.compile(re.escape(src_value))
     if copy:
         updated_dict = deepcopy(input_dict)
     else:
