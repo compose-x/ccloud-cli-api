@@ -11,8 +11,6 @@ https://github.com/aws-samples/aws-secrets-manager-rotation-lambdas/blob/master/
 import json
 import logging
 import os
-import re
-from copy import deepcopy
 from tempfile import TemporaryDirectory
 
 import boto3
@@ -21,10 +19,7 @@ from compose_x_common.compose_x_common import keyisset
 from ccloud_cli_api.ccloud_cli_api import (
     api_key_exists,
     create_api_key,
-    delete_api_key,
-    list_api_keys,
     list_available_clusters,
-    list_environments,
     login,
 )
 from ccloud_cli_api.tools import replace_string_in_dict_values
@@ -115,7 +110,7 @@ def replace_kafka_credentials(previous_key_details, current_value, sr_key=None):
     replace_string_in_dict_values(
         new_value, current_value["SASL_PASSWORD"], new_api_key["secret"]
     )
-    if sr_key:
+    if sr_key and bool(os.environ.get("ENABLE_SR_ROTATION", False)):
         new_sr_key = create_api_key(
             service_account=sr_key["owner"], resource=sr_key["resource_id"]
         )
