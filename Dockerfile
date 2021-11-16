@@ -1,4 +1,4 @@
-ARG CCLOUD_IMAGE=public.ecr.aws/ews-network/confluentinc/ccloud-cli:v1.39.1
+ARG CCLOUD_IMAGE=public.ecr.aws/ews-network/confluentinc/ccloud-cli:1.43.1
 ARG PYTHON_IMAGE=public.ecr.aws/compose-x/python:3.8
 ARG LAMBDA_PYTHON=public.ecr.aws/lambda/python:3.8
 
